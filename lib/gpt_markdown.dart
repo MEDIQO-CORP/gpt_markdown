@@ -6,6 +6,7 @@ import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:gpt_markdown/custom_widgets/custom_divider.dart';
 import 'package:gpt_markdown/custom_widgets/custom_error_image.dart';
 import 'package:gpt_markdown/custom_widgets/custom_rb_cb.dart';
+import 'package:gpt_markdown/custom_widgets/editable_text_span.dart';
 import 'package:gpt_markdown/custom_widgets/selectable_adapter.dart';
 import 'package:gpt_markdown/custom_widgets/unordered_ordered_list.dart';
 import 'dart:math';
@@ -44,6 +45,8 @@ class GptMarkdown extends StatelessWidget {
     this.components,
     this.inlineComponents,
     this.useDollarSignsForLatex = false,
+    this.editable = false,
+    this.onTextChanged,
   });
 
   /// The direction of the text.
@@ -148,6 +151,12 @@ class GptMarkdown extends StatelessWidget {
   /// ```
   final List<MarkdownComponent>? inlineComponents;
 
+  /// Whether the text is editable.
+  final bool editable;
+
+  /// The callback function to handle text changes.
+  final void Function(String text)? onTextChanged;
+
   /// A method to remove extra lines inside block LaTeX.
   // String _removeExtraLinesInsideBlockLatex(String text) {
   //   return text.replaceAllMapped(
@@ -207,6 +216,8 @@ class GptMarkdown extends StatelessWidget {
           components: components,
           inlineComponents: inlineComponents,
           tableBuilder: tableBuilder,
+          editable: editable,
+          onTextChanged: onTextChanged,
         ),
       ),
     );

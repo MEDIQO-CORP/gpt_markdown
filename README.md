@@ -33,6 +33,7 @@ gpt_markdown is a drop-in replacement for flutter_markdown, offering extended su
 | 📱 Selectable | ✅ |
 | 🧩 Custom components | ✅ |  |
 | 📎 Underline | ✅ |  |
+| ✏️ Editable Text | ✅ |  |
 
 ## ✨ Key Features
 
@@ -140,6 +141,7 @@ Check the documentation [here.](https://github.com/Infinitix-LLC/gpt_markdown/tr
 import 'package:flutter/material.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
+// Basic usage
 return GptMarkdown(
     '''
     * This is a unordered list.
@@ -147,6 +149,22 @@ return GptMarkdown(
     style: const TextStyle(
       color: Colors.red,
     ),
+),
+
+// Editable text feature
+return GptMarkdown(
+    '''
+    # My Document
+    
+    This text can be edited by clicking on it.
+    
+    **Bold** and *italic* text remain non-editable.
+    ''',
+    editable: true,
+    onTextChanged: (newText) {
+      // Handle text changes
+      print('Text changed: $newText');
+    },
 ),
 
 ```

@@ -93,6 +93,8 @@ class GptMarkdownConfig {
     this.components,
     this.inlineComponents,
     this.tableBuilder,
+    this.editable = false,
+    this.onTextChanged,
   });
 
   /// The direction of the text.
@@ -155,6 +157,12 @@ class GptMarkdownConfig {
   /// The table builder.
   final TableBuilder? tableBuilder;
 
+  /// Whether the text is editable.
+  final bool editable;
+
+  /// The callback function to handle text changes.
+  final void Function(String text)? onTextChanged;
+
   /// A copy of the configuration with the specified parameters.
   GptMarkdownConfig copyWith({
     TextStyle? style,
@@ -177,6 +185,8 @@ class GptMarkdownConfig {
     final List<MarkdownComponent>? components,
     final List<MarkdownComponent>? inlineComponents,
     final TableBuilder? tableBuilder,
+    final bool? editable,
+    final void Function(String text)? onTextChanged,
   }) {
     return GptMarkdownConfig(
       style: style ?? this.style,
@@ -199,6 +209,8 @@ class GptMarkdownConfig {
       components: components ?? this.components,
       inlineComponents: inlineComponents ?? this.inlineComponents,
       tableBuilder: tableBuilder ?? this.tableBuilder,
+      editable: editable ?? this.editable,
+      onTextChanged: onTextChanged ?? this.onTextChanged,
     );
   }
 
@@ -222,6 +234,7 @@ class GptMarkdownConfig {
         maxLines == other.maxLines &&
         overflow == other.overflow &&
         followLinkColor == other.followLinkColor &&
+        editable == other.editable &&
         // latexWorkaround == other.latexWorkaround &&
         // components == other.components &&
         // inlineComponents == other.inlineComponents &&
@@ -234,6 +247,7 @@ class GptMarkdownConfig {
         // imageBuilder == other.imageBuilder &&
         // highlightBuilder == other.highlightBuilder &&
         // onLinkTap == other.onLinkTap &&
+        // onTextChanged == other.onTextChanged &&
         textDirection == other.textDirection;
   }
 }

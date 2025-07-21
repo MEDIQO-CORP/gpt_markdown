@@ -76,7 +76,15 @@ abstract class MarkdownComponent {
           spans.addAll(newSpans);
           return "";
         }
-        spans.add(TextSpan(text: p0, style: config.style));
+        if (config.editable && config.onTextChanged != null) {
+          spans.add(EditableTextSpan(
+            text: p0,
+            onChanged: config.onTextChanged!,
+            style: config.style,
+          ));
+        } else {
+          spans.add(TextSpan(text: p0, style: config.style));
+        }
         return "";
       },
     );

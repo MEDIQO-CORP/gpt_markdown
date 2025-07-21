@@ -1,3 +1,10 @@
+## 1.1.3
+
+* ✏️ Added editable text feature - users can now click on plain text to edit it inline
+* 🎯 Added `editable` parameter to enable/disable text editing
+* 📝 Added `onTextChanged` callback to handle text modifications
+* 🎨 Editable text shows a dotted underline to indicate it can be edited
+
 ## 1.1.2
 
 * 📊 Fixed table column alignment support ([#65](https://github.com/Infinitix-LLC/gpt_markdown/issues/65))
