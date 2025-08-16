@@ -1,3 +1,8 @@
+## 1.2.4
+
+* ✨ Added auto-diff `appendMarkdown` with chunked typewriter animation.
+* 📊 Render markdown tables as grid widgets in the editor.
+
 ## 1.2.3
 
 * 🐛 Handle markdown tables in editor's markdown-to-text parser.
