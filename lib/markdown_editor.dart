@@ -30,7 +30,7 @@ class GptMarkdownController extends ChangeNotifier {
   /// Computes the diff between the current text and [nextMarkdown] and animates
   /// the inserted segments with a typewriter effect.
   Future<void> appendMarkdown(String nextMarkdown,
-      {Duration charDelay = Duration.zero}) async {
+      {Duration charDelay = const Duration(milliseconds: 40)}) async {
     final current = _textController.text;
     if (nextMarkdown == current) return;
 
@@ -75,9 +75,7 @@ class GptMarkdownController extends ChangeNotifier {
       _textController.showHighlight = false;
       for (var i = 0; i < chunk.length; i++) {
         _textController.text += chunk[i];
-        if (charDelay > Duration.zero) {
-          await Future.delayed(charDelay);
-        }
+        await Future.delayed(charDelay);
       }
       isAppending.value = false;
       _textController.showHighlight = true;
@@ -127,17 +125,16 @@ class _MarkdownEditingController extends TextEditingController {
     bool withComposing = false,
   }) {
     final baseStyle = style ?? const TextStyle();
-    final spans = _parseMarkdown(context, text, baseStyle);
-    final flatSpans = _flattenSpans(spans);
+    final spans = _parseMarkdown(text, baseStyle);
     if (!showHighlight) {
-      return TextSpan(children: flatSpans, style: baseStyle);
+      return TextSpan(children: spans, style: baseStyle);
     }
 
     final plainText =
-        flatSpans.whereType<TextSpan>().map((s) => s.text ?? '').join();
+        spans.map((s) => s is TextSpan ? (s.text ?? '') : '').join();
     final wordMatches = RegExp(r'\b\w+\b').allMatches(plainText).toList();
     if (wordMatches.isEmpty) {
-      return TextSpan(children: flatSpans, style: baseStyle);
+      return TextSpan(children: spans, style: baseStyle);
     }
     int count = 3;
     if (wordMatches.length < 3 && wordMatches.length >= 2) {
@@ -150,7 +147,7 @@ class _MarkdownEditingController extends TextEditingController {
 
     final result = <InlineSpan>[];
     int index = 0;
-    for (final span in flatSpans) {
+    for (final span in spans) {
       if (span is! TextSpan) {
         result.add(span);
         continue;
@@ -178,215 +175,121 @@ class _MarkdownEditingController extends TextEditingController {
     return TextSpan(style: baseStyle, children: result);
   }
 
-  List<InlineSpan> _parseMarkdown(
-      BuildContext context, String input, TextStyle baseStyle) {
-    final document = md.Document(
-      extensionSet: md.ExtensionSet.gitHubWeb,
-      encodeHtml: false,
-    );
-    final nodes = document.parseLines(input.split('\n'));
+  /// Parses a very small subset of markdown (**bold**, *italic*, `code`, ## heading, tables).
+  List<InlineSpan> _parseMarkdown(String input, TextStyle baseStyle) {
     final spans = <InlineSpan>[];
-    for (final node in nodes) {
-      spans.add(_nodeToSpan(context, node, baseStyle));
-      if (node != nodes.last) {
+    final lines = input.split('\n');
+    int i = 0;
+    while (i < lines.length) {
+      var line = lines[i];
+
+      // Handle markdown tables
+      if (_isTableLine(line)) {
+        final tableLines = <String>[];
+        while (i < lines.length && _isTableLine(lines[i])) {
+          tableLines.add(lines[i]);
+          i++;
+        }
+        spans.add(_buildTable(tableLines, baseStyle));
+        if (i < lines.length) {
+          spans.add(TextSpan(text: '\n', style: baseStyle));
+        }
+        continue;
+      }
+
+      var style = baseStyle;
+      final headingMatch = RegExp(r'^(#{1,2})\s+(.*)').firstMatch(line);
+      if (headingMatch != null) {
+        final level = headingMatch.group(1)!.length;
+        line = headingMatch.group(2)!;
+        final scale = level == 1 ? 1.5 : 1.3;
+        style = baseStyle.copyWith(
+          fontWeight: FontWeight.bold,
+          fontSize: (baseStyle.fontSize ?? 14) * scale,
+        );
+      }
+
+      final regex = RegExp(r'(\*\*.*?\*\*|\*.*?\*|`.*?`)', dotAll: true);
+      int index = 0;
+      for (final match in regex.allMatches(line)) {
+        if (match.start > index) {
+          spans.add(TextSpan(
+              text: line.substring(index, match.start), style: style));
+        }
+        final matchText = match.group(0)!;
+        if (matchText.startsWith('**')) {
+          spans.add(TextSpan(
+              text: matchText.substring(2, matchText.length - 2),
+              style: style.copyWith(fontWeight: FontWeight.bold)));
+        } else if (matchText.startsWith('*')) {
+          spans.add(TextSpan(
+              text: matchText.substring(1, matchText.length - 1),
+              style: style.copyWith(fontStyle: FontStyle.italic)));
+        } else if (matchText.startsWith('`')) {
+          spans.add(TextSpan(
+              text: matchText.substring(1, matchText.length - 1),
+              style: style.copyWith(fontFamily: 'monospace')));
+        }
+        index = match.end;
+      }
+      if (index < line.length) {
+        spans.add(TextSpan(text: line.substring(index), style: style));
+      }
+      if (i < lines.length - 1) {
         spans.add(TextSpan(text: '\n', style: baseStyle));
       }
+      i++;
     }
     return spans;
   }
 
-  InlineSpan _nodeToSpan(
-      BuildContext context, md.Node node, TextStyle style) {
-    if (node is md.Text) {
-      return TextSpan(text: node.text, style: style);
-    }
-    if (node is md.Element) {
-      switch (node.tag) {
-        case 'p':
-          return TextSpan(
-            style: style,
-            children:
-                node.children?.map((c) => _nodeToSpan(context, c, style)).toList(),
-          );
-        case 'h1':
-        case 'h2':
-          final level = int.parse(node.tag.substring(1));
-          final scale = level == 1 ? 1.5 : 1.3;
-          final headingStyle = style.copyWith(
-            fontWeight: FontWeight.bold,
-            fontSize: (style.fontSize ?? 14) * scale,
-          );
-          return TextSpan(
-            style: headingStyle,
-            children: node.children
-                ?.map((c) => _nodeToSpan(context, c, headingStyle))
-                .toList(),
-          );
-        case 'strong':
-          final boldStyle = style.copyWith(fontWeight: FontWeight.bold);
-          return TextSpan(
-            style: boldStyle,
-            children: node.children
-                ?.map((c) => _nodeToSpan(context, c, boldStyle))
-                .toList(),
-          );
-        case 'em':
-          final italicStyle = style.copyWith(fontStyle: FontStyle.italic);
-          return TextSpan(
-            style: italicStyle,
-            children: node.children
-                ?.map((c) => _nodeToSpan(context, c, italicStyle))
-                .toList(),
-          );
-        case 'code':
-          final text = node.children
-                  ?.map((n) => n is md.Text ? n.text : '')
-                  .join() ??
-              '';
-          return TextSpan(
-            text: text,
-            style: style.copyWith(fontFamily: 'monospace'),
-          );
-        case 'table':
-          return WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: _buildTableElement(context, node, style),
-          );
-        default:
-          return TextSpan(
-            style: style,
-            children: node.children
-                ?.map((c) => _nodeToSpan(context, c, style))
-                .toList(),
-          );
-      }
-    }
-    return TextSpan(text: '', style: style);
+  bool _isTableLine(String line) {
+    final trimmed = line.trim();
+    return trimmed.startsWith('|') && trimmed.contains('|');
   }
 
-  Widget _buildTableElement(
-      BuildContext context, md.Element table, TextStyle baseStyle) {
-    final style = MarkdownTableStyle.of(context);
-    final rows = <TableRow>[];
-    final alignments = <TextAlign>[];
-
-    md.Element? thead;
-    md.Element? tbody;
-    for (final child in table.children!.whereType<md.Element>()) {
-      if (child.tag == 'thead') thead = child;
-      if (child.tag == 'tbody') tbody = child;
+  InlineSpan _buildTable(List<String> lines, TextStyle baseStyle) {
+    final rows = <List<String>>[];
+    for (final raw in lines) {
+      var line = raw.trim();
+      if (line.startsWith('|')) {
+        line = line.substring(1);
+      }
+      if (line.endsWith('|')) {
+        line = line.substring(0, line.length - 1);
+      }
+      final cells = line.split('|').map((c) => c.trim()).toList();
+      final isSeparator =
+          cells.every((c) => RegExp(r'^:?-+:?$').hasMatch(c));
+      if (!isSeparator) {
+        rows.add(cells);
+      }
     }
 
-    if (thead != null && thead.children!.isNotEmpty) {
-      final headerRow = thead.children!.first as md.Element;
-      final headerCells = headerRow.children!.whereType<md.Element>().toList();
-      final headerWidgets = <Widget>[];
-      for (final cell in headerCells) {
-        final align = _cellAlignment(cell);
-        alignments.add(align);
-        headerWidgets.add(
-          _buildTableCell(
-            context,
-            cell,
-            baseStyle.copyWith(fontWeight: FontWeight.bold),
-            style,
-            align,
-          ),
-        );
-      }
-      rows.add(
+    final tableRows = <TableRow>[];
+    for (final row in rows) {
+      tableRows.add(
         TableRow(
-          decoration: BoxDecoration(color: style.headerColor),
-          children: headerWidgets,
+          children: [
+            for (final cell in row)
+              Padding(
+                padding: const EdgeInsets.all(4.0),
+                child: Text(cell, style: baseStyle),
+              ),
+          ],
         ),
       );
     }
 
-    final bodyRows = tbody != null
-        ? tbody.children!.whereType<md.Element>().toList()
-        : table.children!
-            .whereType<md.Element>()
-            .where((e) => e.tag == 'tr')
-            .toList();
-
-    for (final row in bodyRows) {
-      final cells = row.children!.whereType<md.Element>().toList();
-      final children = <Widget>[];
-      for (var i = 0; i < cells.length; i++) {
-        final cell = cells[i];
-        TextAlign align =
-            (alignments.length > i) ? alignments[i] : _cellAlignment(cell);
-        if (alignments.length <= i) alignments.add(align);
-        children.add(
-          _buildTableCell(context, cell, baseStyle, style, align),
-        );
-      }
-      rows.add(TableRow(children: children));
-    }
-
-    final controller = ScrollController();
-    return Scrollbar(
-      controller: controller,
-      child: SingleChildScrollView(
-        controller: controller,
-        scrollDirection: Axis.horizontal,
-        child: Table(
-          defaultColumnWidth: const IntrinsicColumnWidth(),
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          border: TableBorder.all(color: style.borderColor, width: 1),
-          children: rows,
-        ),
+    return WidgetSpan(
+      alignment: PlaceholderAlignment.middle,
+      child: Table(
+        defaultColumnWidth: const IntrinsicColumnWidth(),
+        border: TableBorder.all(color: Colors.grey.shade400),
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        children: tableRows,
       ),
     );
-  }
-
-  TextAlign _cellAlignment(md.Element cell) {
-    final style = cell.attributes['style'];
-    if (style != null) {
-      if (style.contains('center')) return TextAlign.center;
-      if (style.contains('right')) return TextAlign.right;
-    }
-    return TextAlign.left;
-  }
-
-  Widget _buildTableCell(BuildContext context, md.Element cell,
-      TextStyle baseStyle, MarkdownTableStyle tableStyle, TextAlign align) {
-    final spans = cell.children
-            ?.map((c) => _nodeToSpan(context, c, baseStyle))
-            .toList() ??
-        [];
-    Widget content = RichText(
-      text: TextSpan(style: baseStyle, children: spans),
-    );
-    content = Padding(padding: tableStyle.cellPadding, child: content);
-    switch (align) {
-      case TextAlign.center:
-        content = Center(child: content);
-        break;
-      case TextAlign.right:
-        content = Align(alignment: Alignment.centerRight, child: content);
-        break;
-      case TextAlign.left:
-      default:
-        content = Align(alignment: Alignment.centerLeft, child: content);
-        break;
-    }
-    return content;
-  }
-
-  List<InlineSpan> _flattenSpans(List<InlineSpan> spans) {
-    final result = <InlineSpan>[];
-    for (final span in spans) {
-      if (span is TextSpan && span.children != null && span.children!.isNotEmpty) {
-        if (span.text != null && span.text!.isNotEmpty) {
-          result.add(TextSpan(text: span.text, style: span.style));
-        }
-        result.addAll(_flattenSpans(span.children!));
-      } else {
-        result.add(span);
-      }
-    }
-    return result;
   }
 
   InlineSpan _applyGradient(TextSpan span, TextStyle baseStyle) {
@@ -435,7 +338,7 @@ class _GptMarkdownEditorState extends State<GptMarkdownEditor>
   void initState() {
     super.initState();
     _fadeController =
-        AnimationController(vsync: this, duration: const Duration(milliseconds: 100))
+        AnimationController(vsync: this, duration: const Duration(milliseconds: 600))
           ..value = 1;
     widget.controller.addListener(_handleChange);
     widget.controller.isAppending.addListener(_handleAppend);
