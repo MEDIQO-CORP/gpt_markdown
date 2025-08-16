@@ -1,3 +1,11 @@
+## 1.2.3
+
+* 🐛 Handle markdown tables in editor's markdown-to-text parser.
+
+## 1.2.2
+
+* 🐛 Restore markdown-to-text parsing to previous implementation to fix regression.
+
 ## 1.2.1
 
 * 🎨 Simplified `GptMarkdownEditor` with live markdown rendering and typewriter animation.
