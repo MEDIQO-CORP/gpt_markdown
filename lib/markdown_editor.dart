@@ -51,7 +51,11 @@ class _MarkdownEditingController extends TextEditingController {
   _MarkdownEditingController({super.text});
 
   @override
-  TextSpan buildTextSpan({TextStyle? style, bool withComposing = false}) {
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    bool withComposing = false,
+  }) {
     final baseStyle = style ?? const TextStyle();
     // First, parse the raw markdown into styled spans without gradient.
     final spans = _parseMarkdown(text, baseStyle);
