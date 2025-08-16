@@ -27,19 +27,80 @@ class GptMarkdownController extends ChangeNotifier {
     }
   }
 
-  /// Appends [chunk] to the end of the document using a typewriter effect.
-  Future<void> appendMarkdown(String chunk,
+  /// Computes the diff between the current text and [nextMarkdown] and animates
+  /// the inserted segments with a typewriter effect.
+  Future<void> appendMarkdown(String nextMarkdown,
       {Duration charDelay = const Duration(milliseconds: 40)}) async {
-    if (chunk.isEmpty) return;
-    isAppending.value = true;
-    _textController.showHighlight = false;
-    for (var i = 0; i < chunk.length; i++) {
-      _textController.text += chunk[i];
-      await Future.delayed(charDelay);
+    final current = _textController.text;
+    if (nextMarkdown == current) return;
+
+    // Find common prefix.
+    var prefixLength = 0;
+    while (
+        prefixLength < current.length &&
+        prefixLength < nextMarkdown.length &&
+        current[prefixLength] == nextMarkdown[prefixLength]) {
+      prefixLength++;
     }
-    isAppending.value = false;
-    _textController.showHighlight = true;
+
+    // Find common suffix after removing prefix.
+    final currentSuffix = current.substring(prefixLength);
+    final nextSuffix = nextMarkdown.substring(prefixLength);
+    var suffixLength = 0;
+    while (
+        suffixLength < currentSuffix.length &&
+        suffixLength < nextSuffix.length &&
+        currentSuffix[currentSuffix.length - 1 - suffixLength] ==
+            nextSuffix[nextSuffix.length - 1 - suffixLength]) {
+      suffixLength++;
+    }
+
+    final inserted =
+        nextMarkdown.substring(prefixLength, nextMarkdown.length - suffixLength);
+
+    // Replace existing content with the unchanged prefix before animating.
+    _textController.text = nextMarkdown.substring(0, prefixLength);
+
+    if (inserted.isEmpty) {
+      _textController.text +=
+          nextMarkdown.substring(nextMarkdown.length - suffixLength);
+      _textController.notifyListeners();
+      return;
+    }
+
+    final chunks = _splitIntoChunks(inserted);
+    for (final chunk in chunks) {
+      if (chunk.isEmpty) continue;
+      isAppending.value = true;
+      _textController.showHighlight = false;
+      for (var i = 0; i < chunk.length; i++) {
+        _textController.text += chunk[i];
+        await Future.delayed(charDelay);
+      }
+      isAppending.value = false;
+      _textController.showHighlight = true;
+      _textController.notifyListeners();
+    }
+
+    // Append the remaining suffix and notify listeners.
+    _textController.text +=
+        nextMarkdown.substring(nextMarkdown.length - suffixLength);
     _textController.notifyListeners();
+  }
+
+  List<String> _splitIntoChunks(String text) {
+    final parts = text.split('\n\n');
+    final result = <String>[];
+    for (var i = 0; i < parts.length; i++) {
+      final segment = parts[i];
+      if (segment.isEmpty) continue;
+      if (i != parts.length - 1) {
+        result.add('$segment\n\n');
+      } else {
+        result.add(segment);
+      }
+    }
+    return result;
   }
 
   @override
@@ -69,7 +130,8 @@ class _MarkdownEditingController extends TextEditingController {
       return TextSpan(children: spans, style: baseStyle);
     }
 
-    final plainText = spans.map((s) => s.text ?? '').join();
+    final plainText =
+        spans.map((s) => s is TextSpan ? (s.text ?? '') : '').join();
     final wordMatches = RegExp(r'\b\w+\b').allMatches(plainText).toList();
     if (wordMatches.isEmpty) {
       return TextSpan(children: spans, style: baseStyle);
@@ -86,6 +148,10 @@ class _MarkdownEditingController extends TextEditingController {
     final result = <InlineSpan>[];
     int index = 0;
     for (final span in spans) {
+      if (span is! TextSpan) {
+        result.add(span);
+        continue;
+      }
       final text = span.text ?? '';
       if (text.isEmpty) {
         result.add(span);
@@ -100,7 +166,8 @@ class _MarkdownEditingController extends TextEditingController {
         final before = text.substring(0, highlightStart - index);
         final after = text.substring(highlightStart - index);
         result.add(TextSpan(text: before, style: span.style));
-        result.add(_applyGradient(TextSpan(text: after, style: span.style), baseStyle));
+        result.add(
+            _applyGradient(TextSpan(text: after, style: span.style), baseStyle));
       }
       index = end;
     }
@@ -109,8 +176,8 @@ class _MarkdownEditingController extends TextEditingController {
   }
 
   /// Parses a very small subset of markdown (**bold**, *italic*, `code`, ## heading, tables).
-  List<TextSpan> _parseMarkdown(String input, TextStyle baseStyle) {
-    final spans = <TextSpan>[];
+  List<InlineSpan> _parseMarkdown(String input, TextStyle baseStyle) {
+    final spans = <InlineSpan>[];
     final lines = input.split('\n');
     int i = 0;
     while (i < lines.length) {
@@ -123,9 +190,7 @@ class _MarkdownEditingController extends TextEditingController {
           tableLines.add(lines[i]);
           i++;
         }
-        spans.add(TextSpan(
-            text: _formatTable(tableLines),
-            style: baseStyle.copyWith(fontFamily: 'monospace')));
+        spans.add(_buildTable(tableLines, baseStyle));
         if (i < lines.length) {
           spans.add(TextSpan(text: '\n', style: baseStyle));
         }
@@ -183,7 +248,7 @@ class _MarkdownEditingController extends TextEditingController {
     return trimmed.startsWith('|') && trimmed.contains('|');
   }
 
-  String _formatTable(List<String> lines) {
+  InlineSpan _buildTable(List<String> lines, TextStyle baseStyle) {
     final rows = <List<String>>[];
     for (final raw in lines) {
       var line = raw.trim();
@@ -200,31 +265,31 @@ class _MarkdownEditingController extends TextEditingController {
         rows.add(cells);
       }
     }
-    if (rows.isEmpty) return '';
 
-    final colCount = rows.map((r) => r.length).reduce(max);
-    final colWidths = List<int>.filled(colCount, 0);
+    final tableRows = <TableRow>[];
     for (final row in rows) {
-      for (var i = 0; i < row.length; i++) {
-        colWidths[i] = max(colWidths[i], row[i].length);
-      }
+      tableRows.add(
+        TableRow(
+          children: [
+            for (final cell in row)
+              Padding(
+                padding: const EdgeInsets.all(4.0),
+                child: Text(cell, style: baseStyle),
+              ),
+          ],
+        ),
+      );
     }
 
-    final buffer = StringBuffer();
-    for (var r = 0; r < rows.length; r++) {
-      final row = rows[r];
-      for (var c = 0; c < colCount; c++) {
-        final cell = c < row.length ? row[c] : '';
-        buffer.write(cell.padRight(colWidths[c]));
-        if (c < colCount - 1) {
-          buffer.write('   ');
-        }
-      }
-      if (r < rows.length - 1) {
-        buffer.writeln();
-      }
-    }
-    return buffer.toString();
+    return WidgetSpan(
+      alignment: PlaceholderAlignment.middle,
+      child: Table(
+        defaultColumnWidth: const IntrinsicColumnWidth(),
+        border: TableBorder.all(color: Colors.grey.shade400),
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        children: tableRows,
+      ),
+    );
   }
 
   InlineSpan _applyGradient(TextSpan span, TextStyle baseStyle) {

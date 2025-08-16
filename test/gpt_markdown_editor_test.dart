@@ -30,4 +30,32 @@ void main() {
     await tester.pump();
     expect(value, 'new text');
   });
+
+  testWidgets('appendMarkdown diffs and animates new text', (tester) async {
+    final controller = GptMarkdownController(text: 'Hello');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GptMarkdownEditor(controller: controller),
+      ),
+    );
+    await controller.appendMarkdown('Hello World\n\nNew',
+        charDelay: Duration.zero);
+    await tester.pump();
+    expect(controller.text, 'Hello World\n\nNew');
+    expect(find.text('World'), findsOneWidget);
+  });
+
+  testWidgets('renders markdown tables as grid widgets', (tester) async {
+    final controller = GptMarkdownController(
+      text: '|A|B|\n|---|---|\n|1|2|',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GptMarkdownEditor(controller: controller),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(Table), findsOneWidget);
+    expect(find.textContaining('|'), findsNothing);
+  });
 }
