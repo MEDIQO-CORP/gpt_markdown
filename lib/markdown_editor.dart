@@ -254,14 +254,30 @@ class _MarkdownEditingController extends TextEditingController {
   }
 
   bool _isTableLine(String line) {
-    final trimmed = line.trim();
-    return trimmed.startsWith('|') && trimmed.contains('|');
+    var trimmed = line.trimLeft();
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      trimmed = trimmed.substring(2).trimLeft();
+    } else {
+      final match = RegExp(r'^\d+[.)]\s+').firstMatch(trimmed);
+      if (match != null) {
+        trimmed = trimmed.substring(match.end).trimLeft();
+      }
+    }
+    return trimmed.contains('|');
   }
 
   InlineSpan _buildTable(List<String> lines, TextStyle baseStyle) {
     final rows = <List<String>>[];
     for (final raw in lines) {
       var line = raw.trim();
+      if (line.startsWith('- ') || line.startsWith('* ')) {
+        line = line.substring(2).trimLeft();
+      } else {
+        final match = RegExp(r'^\d+[.)]\s+').firstMatch(line);
+        if (match != null) {
+          line = line.substring(match.end).trimLeft();
+        }
+      }
       if (line.startsWith('|')) {
         line = line.substring(1);
       }
