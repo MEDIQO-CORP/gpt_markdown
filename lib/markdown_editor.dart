@@ -5,7 +5,17 @@ part of 'gpt_markdown.dart';
 class GptMarkdownController extends ChangeNotifier {
   GptMarkdownController({String text = ''})
       : _textController = _MarkdownEditingController(text: text) {
-    _textController.addListener(notifyListeners);
+    _textController.addListener(() {
+      notifyListeners();
+      if (!isAppending.value) {
+        _textController.showHighlight = true;
+        _highlightTimer?.cancel();
+        _highlightTimer = Timer(const Duration(seconds: 1), () {
+          _textController.showHighlight = false;
+          _textController.notifyListeners();
+        });
+      }
+    });
   }
 
   final _MarkdownEditingController _textController;
@@ -15,6 +25,8 @@ class GptMarkdownController extends ChangeNotifier {
 
   /// Notifies when a typewriter append is running.
   final ValueNotifier<bool> isAppending = ValueNotifier<bool>(false);
+
+  Timer? _highlightTimer;
 
   /// Current markdown text.
   String get text => _textController.text;
@@ -30,17 +42,22 @@ class GptMarkdownController extends ChangeNotifier {
       {Duration charDelay = const Duration(milliseconds: 40)}) async {
     if (chunk.isEmpty) return;
     isAppending.value = true;
+    _highlightTimer?.cancel();
+    _textController.showHighlight = true;
     for (var i = 0; i < chunk.length; i++) {
       _textController.text += chunk[i];
       await Future.delayed(charDelay);
     }
     isAppending.value = false;
+    _textController.showHighlight = false;
+    _textController.notifyListeners();
   }
 
   @override
   void dispose() {
     _textController.dispose();
     isAppending.dispose();
+    _highlightTimer?.cancel();
     super.dispose();
   }
 }
@@ -50,6 +67,8 @@ class GptMarkdownController extends ChangeNotifier {
 class _MarkdownEditingController extends TextEditingController {
   _MarkdownEditingController({super.text});
 
+  bool showHighlight = false;
+
   @override
   TextSpan buildTextSpan({
     required BuildContext context,
@@ -57,10 +76,11 @@ class _MarkdownEditingController extends TextEditingController {
     bool withComposing = false,
   }) {
     final baseStyle = style ?? const TextStyle();
-    // First, parse the raw markdown into styled spans without gradient.
     final spans = _parseMarkdown(text, baseStyle);
+    if (!showHighlight) {
+      return TextSpan(children: spans, style: baseStyle);
+    }
 
-    // Compute where the gradient should start in the plain string.
     final plainText = spans.map((s) => s.text ?? '').join();
     final wordMatches = RegExp(r'\b\w+\b').allMatches(plainText).toList();
     if (wordMatches.isEmpty) {
@@ -75,7 +95,6 @@ class _MarkdownEditingController extends TextEditingController {
     final startMatch = wordMatches[wordMatches.length - count];
     final highlightStart = startMatch.start;
 
-    // Split spans to apply gradient starting at [highlightStart].
     final result = <InlineSpan>[];
     int index = 0;
     for (final span in spans) {
@@ -86,13 +105,10 @@ class _MarkdownEditingController extends TextEditingController {
       }
       final end = index + text.length;
       if (end <= highlightStart) {
-        // Entire span before highlight.
         result.add(span);
       } else if (index >= highlightStart) {
-        // Entire span within highlight.
         result.add(_applyGradient(span, baseStyle));
       } else {
-        // Span splits at highlight.
         final before = text.substring(0, highlightStart - index);
         final after = text.substring(highlightStart - index);
         result.add(TextSpan(text: before, style: span.style));
@@ -214,14 +230,24 @@ class _GptMarkdownEditorState extends State<GptMarkdownEditor>
 
     return FadeTransition(
       opacity: _fadeController.drive(Tween(begin: 0.0, end: 1.0)),
-      child: TextField(
-        controller: widget.controller.textController,
-        maxLines: null,
-        style: baseStyle,
-        decoration: const InputDecoration(
-          border: InputBorder.none,
-          filled: true,
-          fillColor: Colors.white,
+      child: Theme(
+        data: theme.copyWith(
+          hoverColor: Colors.transparent,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          focusColor: Colors.transparent,
+        ),
+        child: TextField(
+          controller: widget.controller.textController,
+          maxLines: null,
+          style: baseStyle,
+          decoration: const InputDecoration(
+            border: InputBorder.none,
+            filled: true,
+            fillColor: Colors.white,
+            hoverColor: Colors.white,
+            focusColor: Colors.white,
+          ),
         ),
       ),
     );
