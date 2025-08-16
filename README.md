@@ -156,11 +156,16 @@ final controller = GptMarkdownController(
   text: '''
 # My Document
 
-Start editing **markdown** here and use the toolbar to preview the result.
+Start editing **markdown** here.
 ''',
 );
 
-GptMarkdownEditor(controller: controller),
+GptMarkdownEditor(
+  controller: controller,
+  onChanged: (value) {
+    // handle changes
+  },
+),
 
 ```
 

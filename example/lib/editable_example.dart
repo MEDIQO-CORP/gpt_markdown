@@ -30,9 +30,9 @@ class EditableMarkdownDemo extends StatefulWidget {
 
 class _EditableMarkdownDemoState extends State<EditableMarkdownDemo> {
   final GptMarkdownController controller = GptMarkdownController(
-    text: '''# Editable Markdown Example
+    text: '''# Markdown Example
 
-Start editing **markdown** in the field below. Use the toolbar to switch between editing and preview modes.
+AI generated **markdown** will appear below with animation.
 ''',
   );
 
@@ -40,10 +40,15 @@ Start editing **markdown** in the field below. Use the toolbar to switch between
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Editable Markdown Demo'),
+        title: const Text('Markdown Demo'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
-      body: GptMarkdownEditor(controller: controller),
+      body: GptMarkdownEditor(
+        controller: controller,
+        onChanged: (value) {
+          // handle changes
+        },
+      ),
     );
   }
 }

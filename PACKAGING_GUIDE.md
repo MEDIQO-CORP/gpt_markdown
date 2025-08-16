@@ -54,8 +54,8 @@ GptMarkdownEditor(controller: controller)
 
 ## Features Added
 
-- ✏️ **Markdown Editor**: Edit markdown text with a built-in toolbar
-- 👀 **Preview Mode**: Switch between raw text editing and rendered preview
+- ⌨️ **Live Markdown Rendering**: Displays rendered markdown as text changes
+- 🎆 **Typewriter Animation** with gradient highlight on the current word
 
 ## Running the Example
 

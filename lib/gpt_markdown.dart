@@ -10,6 +10,7 @@ import 'package:gpt_markdown/custom_widgets/editable_text_span.dart';
 import 'package:gpt_markdown/custom_widgets/selectable_adapter.dart';
 import 'package:gpt_markdown/custom_widgets/unordered_ordered_list.dart';
 import 'dart:math';
+import 'dart:async';
 
 import 'custom_widgets/code_field.dart';
 import 'custom_widgets/indent_widget.dart';
