@@ -30,7 +30,7 @@ class GptMarkdownController extends ChangeNotifier {
   /// Computes the diff between the current text and [nextMarkdown] and animates
   /// the inserted segments with a typewriter effect.
   Future<void> appendMarkdown(String nextMarkdown,
-      {Duration charDelay = const Duration(milliseconds: 40)}) async {
+      {Duration charDelay = Duration.zero}) async {
     final current = _textController.text;
     if (nextMarkdown == current) return;
 
@@ -75,7 +75,9 @@ class GptMarkdownController extends ChangeNotifier {
       _textController.showHighlight = false;
       for (var i = 0; i < chunk.length; i++) {
         _textController.text += chunk[i];
-        await Future.delayed(charDelay);
+        if (charDelay > Duration.zero) {
+          await Future.delayed(charDelay);
+        }
       }
       isAppending.value = false;
       _textController.showHighlight = true;
@@ -217,18 +219,26 @@ class _MarkdownEditingController extends TextEditingController {
               text: line.substring(index, match.start), style: style));
         }
         final matchText = match.group(0)!;
-        if (matchText.startsWith('**')) {
+        if (matchText.startsWith('**') &&
+            matchText.endsWith('**') &&
+            matchText.length >= 4) {
           spans.add(TextSpan(
               text: matchText.substring(2, matchText.length - 2),
               style: style.copyWith(fontWeight: FontWeight.bold)));
-        } else if (matchText.startsWith('*')) {
+        } else if (matchText.startsWith('*') &&
+            matchText.endsWith('*') &&
+            matchText.length >= 2) {
           spans.add(TextSpan(
               text: matchText.substring(1, matchText.length - 1),
               style: style.copyWith(fontStyle: FontStyle.italic)));
-        } else if (matchText.startsWith('`')) {
+        } else if (matchText.startsWith('`') &&
+            matchText.endsWith('`') &&
+            matchText.length >= 2) {
           spans.add(TextSpan(
               text: matchText.substring(1, matchText.length - 1),
               style: style.copyWith(fontFamily: 'monospace')));
+        } else {
+          spans.add(TextSpan(text: matchText, style: style));
         }
         index = match.end;
       }
@@ -338,7 +348,7 @@ class _GptMarkdownEditorState extends State<GptMarkdownEditor>
   void initState() {
     super.initState();
     _fadeController =
-        AnimationController(vsync: this, duration: const Duration(milliseconds: 600))
+        AnimationController(vsync: this, duration: const Duration(milliseconds: 100))
           ..value = 1;
     widget.controller.addListener(_handleChange);
     widget.controller.isAppending.addListener(_handleAppend);

@@ -1,3 +1,9 @@
+## 1.2.5
+
+* 🛠️ Prevent RangeError when parsing malformed markdown.
+* ⚡ Removed default delay in typewriter animation chunks.
+* 🎞️ Reduced fade animation duration to 100ms for quicker transitions.
+
 ## 1.2.4
 
 * ✨ Added auto-diff `appendMarkdown` with chunked typewriter animation.
