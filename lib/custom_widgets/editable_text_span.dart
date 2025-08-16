@@ -105,7 +105,6 @@ class _EditableTextWidgetState extends State<_EditableTextWidget> {
             bottom: BorderSide(
               color: Theme.of(context).primaryColor.withOpacity(0.3),
               width: 1,
-              style: BorderStyle.dotted,
             ),
           ),
         ),
