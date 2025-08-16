@@ -1096,6 +1096,7 @@ class TableMd extends BlockMd {
       );
     }
 
+    final style = MarkdownTableStyle.of(context);
     final controller = ScrollController();
     return Scrollbar(
       controller: controller,
@@ -1108,7 +1109,7 @@ class TableMd extends BlockMd {
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           border: TableBorder.all(
             width: 1,
-            color: Theme.of(context).colorScheme.onSurface,
+            color: style.borderColor,
           ),
           children:
               value
@@ -1126,11 +1127,8 @@ class TableMd extends BlockMd {
                       decoration:
                           (hasHeader && entry.key == 0)
                               ? BoxDecoration(
-                                color:
-                                    Theme.of(
-                                      context,
-                                    ).colorScheme.surfaceContainerHighest,
-                              )
+                                  color: style.headerColor,
+                                )
                               : null,
                       children: List.generate(maxCol, (index) {
                         var e = entry.value;
@@ -1142,10 +1140,7 @@ class TableMd extends BlockMd {
 
                         // Apply alignment based on column alignment
                         Widget content = Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
+                          padding: style.cellPadding,
                           child: MdWidget(
                             context,
                             (e[index] ?? "").trim(),
