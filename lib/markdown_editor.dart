@@ -7,14 +7,6 @@ class GptMarkdownController extends ChangeNotifier {
       : _textController = _MarkdownEditingController(text: text) {
     _textController.addListener(() {
       notifyListeners();
-      if (!isAppending.value) {
-        _textController.showHighlight = true;
-        _highlightTimer?.cancel();
-        _highlightTimer = Timer(const Duration(seconds: 1), () {
-          _textController.showHighlight = false;
-          _textController.notifyListeners();
-        });
-      }
     });
   }
 
@@ -25,8 +17,6 @@ class GptMarkdownController extends ChangeNotifier {
 
   /// Notifies when a typewriter append is running.
   final ValueNotifier<bool> isAppending = ValueNotifier<bool>(false);
-
-  Timer? _highlightTimer;
 
   /// Current markdown text.
   String get text => _textController.text;
@@ -42,14 +32,13 @@ class GptMarkdownController extends ChangeNotifier {
       {Duration charDelay = const Duration(milliseconds: 40)}) async {
     if (chunk.isEmpty) return;
     isAppending.value = true;
-    _highlightTimer?.cancel();
-    _textController.showHighlight = true;
+    _textController.showHighlight = false;
     for (var i = 0; i < chunk.length; i++) {
       _textController.text += chunk[i];
       await Future.delayed(charDelay);
     }
     isAppending.value = false;
-    _textController.showHighlight = false;
+    _textController.showHighlight = true;
     _textController.notifyListeners();
   }
 
@@ -57,7 +46,6 @@ class GptMarkdownController extends ChangeNotifier {
   void dispose() {
     _textController.dispose();
     isAppending.dispose();
-    _highlightTimer?.cancel();
     super.dispose();
   }
 }
@@ -120,34 +108,53 @@ class _MarkdownEditingController extends TextEditingController {
     return TextSpan(style: baseStyle, children: result);
   }
 
-  /// Parses a very small subset of markdown (**bold**, *italic*, `code`).
+  /// Parses a very small subset of markdown (**bold**, *italic*, `code`, ## heading).
   List<TextSpan> _parseMarkdown(String input, TextStyle baseStyle) {
     final spans = <TextSpan>[];
-    final regex = RegExp(r'(\*\*.*?\*\*|\*.*?\*|`.*?`)', dotAll: true);
-    int index = 0;
-    for (final match in regex.allMatches(input)) {
-      if (match.start > index) {
-        spans.add(TextSpan(
-            text: input.substring(index, match.start), style: baseStyle));
+    final lines = input.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var style = baseStyle;
+      final headingMatch = RegExp(r'^(#{1,2})\s+(.*)').firstMatch(line);
+      if (headingMatch != null) {
+        final level = headingMatch.group(1)!.length;
+        line = headingMatch.group(2)!;
+        final scale = level == 1 ? 1.5 : 1.3;
+        style = baseStyle.copyWith(
+          fontWeight: FontWeight.bold,
+          fontSize: (baseStyle.fontSize ?? 14) * scale,
+        );
       }
-      final matchText = match.group(0)!;
-      if (matchText.startsWith('**')) {
-        spans.add(TextSpan(
-            text: matchText.substring(2, matchText.length - 2),
-            style: baseStyle.copyWith(fontWeight: FontWeight.bold)));
-      } else if (matchText.startsWith('*')) {
-        spans.add(TextSpan(
-            text: matchText.substring(1, matchText.length - 1),
-            style: baseStyle.copyWith(fontStyle: FontStyle.italic)));
-      } else if (matchText.startsWith('`')) {
-        spans.add(TextSpan(
-            text: matchText.substring(1, matchText.length - 1),
-            style: baseStyle.copyWith(fontFamily: 'monospace')));
+
+      final regex = RegExp(r'(\*\*.*?\*\*|\*.*?\*|`.*?`)', dotAll: true);
+      int index = 0;
+      for (final match in regex.allMatches(line)) {
+        if (match.start > index) {
+          spans.add(TextSpan(
+              text: line.substring(index, match.start), style: style));
+        }
+        final matchText = match.group(0)!;
+        if (matchText.startsWith('**')) {
+          spans.add(TextSpan(
+              text: matchText.substring(2, matchText.length - 2),
+              style: style.copyWith(fontWeight: FontWeight.bold)));
+        } else if (matchText.startsWith('*')) {
+          spans.add(TextSpan(
+              text: matchText.substring(1, matchText.length - 1),
+              style: style.copyWith(fontStyle: FontStyle.italic)));
+        } else if (matchText.startsWith('`')) {
+          spans.add(TextSpan(
+              text: matchText.substring(1, matchText.length - 1),
+              style: style.copyWith(fontFamily: 'monospace')));
+        }
+        index = match.end;
       }
-      index = match.end;
-    }
-    if (index < input.length) {
-      spans.add(TextSpan(text: input.substring(index), style: baseStyle));
+      if (index < line.length) {
+        spans.add(TextSpan(text: line.substring(index), style: style));
+      }
+      if (i < lines.length - 1) {
+        spans.add(TextSpan(text: '\n', style: baseStyle));
+      }
     }
     return spans;
   }
@@ -213,11 +220,13 @@ class _GptMarkdownEditorState extends State<GptMarkdownEditor>
   }
 
   void _handleChange() {
+    if (!mounted) return;
     widget.onChanged?.call(widget.controller.text);
     setState(() {});
   }
 
   void _handleAppend() {
+    if (!mounted) return;
     if (widget.controller.isAppending.value) {
       _fadeController.forward(from: 0);
     }
@@ -243,6 +252,11 @@ class _GptMarkdownEditorState extends State<GptMarkdownEditor>
           style: baseStyle,
           decoration: const InputDecoration(
             border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            errorBorder: InputBorder.none,
+            disabledBorder: InputBorder.none,
+            focusedErrorBorder: InputBorder.none,
             filled: true,
             fillColor: Colors.white,
             hoverColor: Colors.white,
