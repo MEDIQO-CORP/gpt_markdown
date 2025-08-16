@@ -64,12 +64,14 @@ class _MarkdownEditingController extends TextEditingController {
     bool withComposing = false,
   }) {
     final baseStyle = style ?? const TextStyle();
-    final spans = _parseMarkdown(text, baseStyle);
+    final spans = _parseMarkdown(context, text, baseStyle);
     if (!showHighlight) {
       return TextSpan(children: spans, style: baseStyle);
     }
 
-    final plainText = spans.map((s) => s.text ?? '').join();
+    final plainText = spans
+        .map((s) => s is TextSpan ? (s.text ?? '') : '')
+        .join();
     final wordMatches = RegExp(r'\b\w+\b').allMatches(plainText).toList();
     if (wordMatches.isEmpty) {
       return TextSpan(children: spans, style: baseStyle);
@@ -86,6 +88,10 @@ class _MarkdownEditingController extends TextEditingController {
     final result = <InlineSpan>[];
     int index = 0;
     for (final span in spans) {
+      if (span is! TextSpan) {
+        result.add(span);
+        continue;
+      }
       final text = span.text ?? '';
       if (text.isEmpty) {
         result.add(span);
@@ -100,7 +106,8 @@ class _MarkdownEditingController extends TextEditingController {
         final before = text.substring(0, highlightStart - index);
         final after = text.substring(highlightStart - index);
         result.add(TextSpan(text: before, style: span.style));
-        result.add(_applyGradient(TextSpan(text: after, style: span.style), baseStyle));
+        result.add(
+            _applyGradient(TextSpan(text: after, style: span.style), baseStyle));
       }
       index = end;
     }
@@ -108,55 +115,12 @@ class _MarkdownEditingController extends TextEditingController {
     return TextSpan(style: baseStyle, children: result);
   }
 
-  /// Parses a very small subset of markdown (**bold**, *italic*, `code`, ## heading).
-  List<TextSpan> _parseMarkdown(String input, TextStyle baseStyle) {
-    final spans = <TextSpan>[];
-    final lines = input.split('\n');
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-      var style = baseStyle;
-      final headingMatch = RegExp(r'^(#{1,2})\s+(.*)').firstMatch(line);
-      if (headingMatch != null) {
-        final level = headingMatch.group(1)!.length;
-        line = headingMatch.group(2)!;
-        final scale = level == 1 ? 1.5 : 1.3;
-        style = baseStyle.copyWith(
-          fontWeight: FontWeight.bold,
-          fontSize: (baseStyle.fontSize ?? 14) * scale,
-        );
-      }
-
-      final regex = RegExp(r'(\*\*.*?\*\*|\*.*?\*|`.*?`)', dotAll: true);
-      int index = 0;
-      for (final match in regex.allMatches(line)) {
-        if (match.start > index) {
-          spans.add(TextSpan(
-              text: line.substring(index, match.start), style: style));
-        }
-        final matchText = match.group(0)!;
-        if (matchText.startsWith('**')) {
-          spans.add(TextSpan(
-              text: matchText.substring(2, matchText.length - 2),
-              style: style.copyWith(fontWeight: FontWeight.bold)));
-        } else if (matchText.startsWith('*')) {
-          spans.add(TextSpan(
-              text: matchText.substring(1, matchText.length - 1),
-              style: style.copyWith(fontStyle: FontStyle.italic)));
-        } else if (matchText.startsWith('`')) {
-          spans.add(TextSpan(
-              text: matchText.substring(1, matchText.length - 1),
-              style: style.copyWith(fontFamily: 'monospace')));
-        }
-        index = match.end;
-      }
-      if (index < line.length) {
-        spans.add(TextSpan(text: line.substring(index), style: style));
-      }
-      if (i < lines.length - 1) {
-        spans.add(TextSpan(text: '\n', style: baseStyle));
-      }
-    }
-    return spans;
+  /// Parses markdown using existing [MarkdownComponent]s so that tables and
+  /// other widgets are supported.
+  List<InlineSpan> _parseMarkdown(
+      BuildContext context, String input, TextStyle baseStyle) {
+    final config = GptMarkdownConfig(style: baseStyle);
+    return MarkdownComponent.generate(context, input, config, true);
   }
 
   InlineSpan _applyGradient(TextSpan span, TextStyle baseStyle) {
@@ -208,13 +172,11 @@ class _GptMarkdownEditorState extends State<GptMarkdownEditor>
         AnimationController(vsync: this, duration: const Duration(milliseconds: 600))
           ..value = 1;
     widget.controller.addListener(_handleChange);
-    widget.controller.isAppending.addListener(_handleAppend);
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_handleChange);
-    widget.controller.isAppending.removeListener(_handleAppend);
     _fadeController.dispose();
     super.dispose();
   }
@@ -222,14 +184,10 @@ class _GptMarkdownEditorState extends State<GptMarkdownEditor>
   void _handleChange() {
     if (!mounted) return;
     widget.onChanged?.call(widget.controller.text);
-    setState(() {});
-  }
-
-  void _handleAppend() {
-    if (!mounted) return;
     if (widget.controller.isAppending.value) {
       _fadeController.forward(from: 0);
     }
+    setState(() {});
   }
 
   @override
@@ -238,7 +196,7 @@ class _GptMarkdownEditorState extends State<GptMarkdownEditor>
     final baseStyle = theme.textTheme.bodyMedium;
 
     return FadeTransition(
-      opacity: _fadeController.drive(Tween(begin: 0.0, end: 1.0)),
+      opacity: _fadeController.drive(CurveTween(curve: Curves.easeInOut)),
       child: Theme(
         data: theme.copyWith(
           hoverColor: Colors.transparent,
