@@ -11,6 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_math_fork: ^0.7.3
+  markdown: ^7.1.1
 
 dev_dependencies:
   flutter_test:
