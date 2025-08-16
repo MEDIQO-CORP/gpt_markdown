@@ -58,4 +58,18 @@ void main() {
     expect(find.byType(Table), findsOneWidget);
     expect(find.textContaining('|'), findsNothing);
   });
+
+  testWidgets('renders tables without leading pipes or bullets', (tester) async {
+    final controller = GptMarkdownController(
+      text: 'A | B | C\n- 1 | 2 | 3\n- 4 | 5 | 6',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GptMarkdownEditor(controller: controller),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(Table), findsOneWidget);
+    expect(find.textContaining('|'), findsNothing);
+  });
 }
