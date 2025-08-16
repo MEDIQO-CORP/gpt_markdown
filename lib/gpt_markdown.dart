@@ -9,7 +9,6 @@ import 'package:gpt_markdown/custom_widgets/custom_rb_cb.dart';
 import 'package:gpt_markdown/custom_widgets/editable_text_span.dart';
 import 'package:gpt_markdown/custom_widgets/selectable_adapter.dart';
 import 'package:gpt_markdown/custom_widgets/unordered_ordered_list.dart';
-import 'package:markdown/markdown.dart' as md;
 import 'dart:math';
 import 'dart:async';
 
@@ -21,7 +20,6 @@ part 'theme.dart';
 part 'markdown_component.dart';
 part 'md_widget.dart';
 part 'markdown_editor.dart';
-part 'table_theme.dart';
 
 /// This widget create a full markdown widget as a column view.
 class GptMarkdown extends StatelessWidget {
