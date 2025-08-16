@@ -18,6 +18,7 @@ import 'custom_widgets/link_button.dart';
 part 'theme.dart';
 part 'markdown_component.dart';
 part 'md_widget.dart';
+part 'markdown_editor.dart';
 
 /// This widget create a full markdown widget as a column view.
 class GptMarkdown extends StatelessWidget {

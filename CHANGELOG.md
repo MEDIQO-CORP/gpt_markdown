@@ -1,3 +1,7 @@
+## 1.2.0
+
+* ✍️ Introduced `GptMarkdownEditor` and `GptMarkdownController` for in-app markdown editing with built-in edit/preview toolbar and internal scrolling.
+
 ## 1.1.3
 
 * ✏️ Added editable text feature - users can now click on plain text to edit it inline
