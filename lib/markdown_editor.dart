@@ -29,97 +29,129 @@ class GptMarkdownController extends ChangeNotifier {
   }
 }
 
-/// A simple markdown editor with built-in edit and preview modes.
+/// A markdown editor that renders the controller text directly with
+/// a typewriter effect and gradient highlight on the currently typing word.
 class GptMarkdownEditor extends StatefulWidget {
-  const GptMarkdownEditor({super.key, required this.controller});
+  const GptMarkdownEditor({
+    super.key,
+    required this.controller,
+    this.onChanged,
+  });
 
   final GptMarkdownController controller;
+  final ValueChanged<String>? onChanged;
 
   @override
   State<GptMarkdownEditor> createState() => _GptMarkdownEditorState();
 }
 
-class _GptMarkdownEditorState extends State<GptMarkdownEditor> {
-  bool _editing = true;
+class _GptMarkdownEditorState extends State<GptMarkdownEditor>
+    with SingleTickerProviderStateMixin {
+  late String _targetText;
+  int _currentIndex = 0;
+  Timer? _timer;
+  late AnimationController _fadeController;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _Toolbar(
-          editing: _editing,
-          onEdit: () => setState(() => _editing = true),
-          onPreview: () => setState(() => _editing = false),
-        ),
-        Expanded(
-          child: _editing ? _buildEditor() : _buildPreview(),
-        ),
-      ],
-    );
+  void initState() {
+    super.initState();
+    _targetText = widget.controller.text;
+    widget.controller.addListener(_handleChange);
+    _fadeController =
+        AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _startAnimation();
   }
-
-  Widget _buildEditor() {
-    return Scrollbar(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(8),
-        child: TextField(
-          controller: widget.controller.textController,
-          maxLines: null,
-          keyboardType: TextInputType.multiline,
-          decoration: const InputDecoration(border: InputBorder.none),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPreview() {
-    return Scrollbar(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(8),
-        child: GptMarkdown(
-          widget.controller.text,
-        ),
-      ),
-    );
-  }
-}
-
-class _Toolbar extends StatelessWidget {
-  const _Toolbar({
-    required this.editing,
-    required this.onEdit,
-    required this.onPreview,
-  });
-
-  final bool editing;
-  final VoidCallback onEdit;
-  final VoidCallback onPreview;
 
   @override
-  Widget build(BuildContext context) {
+  void dispose() {
+    widget.controller.removeListener(_handleChange);
+    _timer?.cancel();
+    _fadeController.dispose();
+    super.dispose();
+  }
+
+  void _handleChange() {
+    _targetText = widget.controller.text;
+    widget.onChanged?.call(_targetText);
+    _startAnimation();
+  }
+
+  void _startAnimation() {
+    _timer?.cancel();
+    _fadeController.forward(from: 0);
+    _currentIndex = 0;
+    if (_targetText.isEmpty) {
+      setState(() {});
+      return;
+    }
+    _timer = Timer.periodic(const Duration(milliseconds: 30), (timer) {
+      if (!mounted) return;
+      setState(() {
+        _currentIndex++;
+      });
+      if (_currentIndex >= _targetText.length) {
+        timer.cancel();
+      }
+    });
+  }
+
+  List<InlineSpan> _buildSpans(String text) {
     final theme = Theme.of(context);
-    TextStyle? active(TextStyle? style, bool active) =>
-        active ? style?.copyWith(fontWeight: FontWeight.bold) : style;
-    return Material(
-      color: theme.colorScheme.surface,
-      child: Row(
-        children: [
-          TextButton(
-            onPressed: onEdit,
-            child: Text(
-              'Edit',
-              style: active(theme.textTheme.labelLarge, editing),
+    final baseConfig =
+        GptMarkdownConfig(style: theme.textTheme.bodyMedium);
+    final lastSpace = text.lastIndexOf(' ');
+    final before = lastSpace == -1 ? '' : text.substring(0, lastSpace + 1);
+    final last = lastSpace == -1 ? text : text.substring(lastSpace + 1);
+    final spans = <InlineSpan>[];
+    spans.addAll(
+      MarkdownComponent.generate(context, before, baseConfig, true),
+    );
+    if (last.isNotEmpty) {
+      final paint = Paint()
+        ..shader = const LinearGradient(
+          colors: [
+            Color.fromRGBO(119, 49, 216, 1),
+            Color.fromRGBO(241, 111, 99, 1),
+            Color.fromRGBO(205, 31, 134, 1),
+          ],
+        ).createShader(
+          Rect.fromLTWH(
+            0,
+            0,
+            (baseConfig.style?.fontSize ?? 14) * last.length,
+            baseConfig.style?.fontSize ?? 14,
+          ),
+        );
+      final gradientConfig = baseConfig.copyWith(
+        style: (baseConfig.style ?? const TextStyle()).copyWith(
+          foreground: paint,
+        ),
+      );
+      spans.addAll(
+        MarkdownComponent.generate(context, last, gradientConfig, true),
+      );
+    }
+    return spans;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text =
+        _targetText.substring(0, min(_currentIndex, _targetText.length));
+    return Container(
+      color: Colors.white,
+      child: Scrollbar(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.zero,
+          child: FadeTransition(
+            opacity: _fadeController,
+            child: RichText(
+              text: TextSpan(children: _buildSpans(text)),
             ),
           ),
-          TextButton(
-            onPressed: onPreview,
-            child: Text(
-              'Preview',
-              style: active(theme.textTheme.labelLarge, !editing),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
+

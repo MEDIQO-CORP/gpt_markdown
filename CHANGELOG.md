@@ -1,3 +1,9 @@
+## 1.2.1
+
+* 🎨 Simplified `GptMarkdownEditor` with live markdown rendering and typewriter animation.
+* 🗑️ Removed edit/preview toolbar and preview mode.
+* 🛠️ Added `onChanged` callback for reacting to text updates.
+
 ## 1.2.0
 
 * ✍️ Introduced `GptMarkdownEditor` and `GptMarkdownController` for in-app markdown editing with built-in edit/preview toolbar and internal scrolling.
