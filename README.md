@@ -152,20 +152,15 @@ return GptMarkdown(
 ),
 
 // Editable text feature
-return GptMarkdown(
-    '''
-    # My Document
-    
-    This text can be edited by clicking on it.
-    
-    **Bold** and *italic* text remain non-editable.
-    ''',
-    editable: true,
-    onTextChanged: (newText) {
-      // Handle text changes
-      print('Text changed: $newText');
-    },
-),
+final controller = GptMarkdownController(
+  text: '''
+# My Document
+
+Start editing **markdown** here and use the toolbar to preview the result.
+''',
+);
+
+GptMarkdownEditor(controller: controller),
 
 ```
 

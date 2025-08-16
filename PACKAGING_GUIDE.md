@@ -1,6 +1,6 @@
 # How to Use gpt_markdown in Your Project
 
-You have several options to use this modified version of gpt_markdown with the new editable text feature:
+You have several options to use this modified version of gpt_markdown with the new markdown editor component:
 
 ## Option 1: Local Path Dependency
 
@@ -34,45 +34,36 @@ dependencies:
 
 ## Option 4: Create a Pull Request
 
-Consider contributing your editable text feature back to the original repository:
+Consider contributing your editor feature back to the original repository:
 1. Fork the original repo: https://github.com/Infinitix-LLC/gpt_markdown
 2. Apply your changes
 3. Create a pull request
 
-## Using the Editable Feature
+## Using the Markdown Editor
 
 Once you have the package in your project:
 
 ```dart
 import 'package:gpt_markdown/gpt_markdown.dart';
 
+final controller = GptMarkdownController(text: markdownText);
+
 // In your widget:
-GptMarkdown(
-  markdownText,
-  editable: true,
-  onTextChanged: (newText) {
-    // Handle text changes
-    setState(() {
-      // Update your text or handle the change
-    });
-  },
-)
+GptMarkdownEditor(controller: controller)
 ```
 
 ## Features Added
 
-- ✏️ **Editable Text**: Click on plain text portions to edit them inline
-- 🎯 **`editable` parameter**: Enable/disable editing mode
-- 📝 **`onTextChanged` callback**: Handle text modifications
-- 🎨 **Visual Indicator**: Dotted underline shows editable text
+- ✏️ **Markdown Editor**: Edit markdown text with a built-in toolbar
+- 👀 **Preview Mode**: Switch between raw text editing and rendered preview
 
 ## Running the Example
 
-To test the editable feature:
+To test the editor feature:
 
 ```bash
 cd example
 flutter run -d macos  # or your preferred device
 ```
 
-Then run the `editable_example.dart` file to see the feature in action.
+Then run the `editable_example.dart` file to see the editor in action.
