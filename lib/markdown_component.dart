@@ -1099,18 +1099,20 @@ class TableMd extends BlockMd {
     final controller = ScrollController();
     return Scrollbar(
       controller: controller,
-      child: SingleChildScrollView(
-        controller: controller,
-        scrollDirection: Axis.horizontal,
-        child: Table(
-          textDirection: config.textDirection,
-          defaultColumnWidth: CustomTableColumnWidth(),
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          border: TableBorder.all(
-            width: 1,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-          children:
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: SingleChildScrollView(
+          controller: controller,
+          scrollDirection: Axis.horizontal,
+          child: Table(
+            textDirection: config.textDirection,
+            defaultColumnWidth: CustomTableColumnWidth(),
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            border: TableBorder.all(
+              width: 2,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+            children:
               value
                   .asMap()
                   .entries

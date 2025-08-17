@@ -1,6 +1,6 @@
 part of 'gpt_markdown.dart';
 
-/// Controller used by [GptMarkdownEditor] to manage the current text and
+/// Controller used by [MarkdownEditor] to manage the current text and
 /// provide utilities for animated appends.
 class GptMarkdownController extends ChangeNotifier {
   GptMarkdownController({String text = ''})
@@ -114,24 +114,14 @@ class GptMarkdownController extends ChangeNotifier {
 }
 
 /// Base class for parsed markdown blocks.
-abstract class _MarkdownBlock {}
-
-/// Inline text such as paragraphs or headings.
-class _ParagraphBlock extends _MarkdownBlock {
-  _ParagraphBlock(this.text);
-  final String text;
-}
-
-/// Block widget such as a table.
-class _TableBlock extends _MarkdownBlock {
-  _TableBlock(this.lines);
-  final List<String> lines;
-}
-
-/// A markdown-aware [TextEditingController] that renders the current value as
-/// rich text and applies a gradient shader to the last few words.
+// A markdown-aware [TextEditingController] that renders the current value using
+// the shared markdown pipeline and applies a gradient shader to the last few
+// words.
 class _MarkdownEditingController extends TextEditingController {
   _MarkdownEditingController({super.text});
+
+  /// Optional theme supplied by the surrounding editor.
+  MdTheme? theme;
 
   bool showHighlight = false;
 
@@ -142,7 +132,11 @@ class _MarkdownEditingController extends TextEditingController {
     bool withComposing = false,
   }) {
     final baseStyle = style ?? const TextStyle();
-    final spans = _parseMarkdown(text, baseStyle);
+    final effectiveTheme = theme ?? mdThemeFromMarkdownComponent(context);
+    final parser = MdParser();
+    final ast = parser.parse(text);
+    final renderer = MdBlockRenderer(theme: effectiveTheme);
+    final spans = renderer.renderBlocks(context, ast, source: text);
     if (!showHighlight) {
       return TextSpan(children: spans, style: baseStyle);
     }
@@ -192,179 +186,8 @@ class _MarkdownEditingController extends TextEditingController {
     return TextSpan(style: baseStyle, children: result);
   }
 
-  /// Breaks the markdown into block level nodes before rendering. This prevents
-  /// large widgets like tables from overlapping adjacent text by ensuring they
-  /// occupy their own line in the flow.
-  List<InlineSpan> _parseMarkdown(String input, TextStyle baseStyle) {
-    final spans = <InlineSpan>[];
-    final blocks = _composeBlocks(input);
-    for (var i = 0; i < blocks.length; i++) {
-      final block = blocks[i];
-      if (block is _TableBlock) {
-        spans.add(_buildTable(block.lines, baseStyle));
-      } else if (block is _ParagraphBlock) {
-        spans.addAll(_parseInline(block.text, baseStyle));
-      }
-      if (i != blocks.length - 1) {
-        spans.add(TextSpan(text: '\n', style: baseStyle));
-      }
-    }
-    return spans;
-  }
-
-  /// Parses inline markdown for a single paragraph or heading.
-  List<InlineSpan> _parseInline(String text, TextStyle baseStyle) {
-    final spans = <InlineSpan>[];
-    final lines = text.split('\n');
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-      var style = baseStyle;
-      final headingMatch = RegExp(r'^(#{1,2})\s+(.*)').firstMatch(line);
-      if (headingMatch != null) {
-        final level = headingMatch.group(1)!.length;
-        line = headingMatch.group(2)!;
-        final scale = level == 1 ? 1.5 : 1.3;
-        style = baseStyle.copyWith(
-          fontWeight: FontWeight.bold,
-          fontSize: (baseStyle.fontSize ?? 14) * scale,
-        );
-      }
-      final regex = RegExp(r'(\*\*.*?\*\*|\*.*?\*|`.*?`)', dotAll: true);
-      int index = 0;
-      for (final match in regex.allMatches(line)) {
-        if (match.start > index) {
-          spans.add(
-              TextSpan(text: line.substring(index, match.start), style: style));
-        }
-        final matchText = match.group(0)!;
-        if (matchText.startsWith('**') &&
-            matchText.endsWith('**') &&
-            matchText.length >= 4) {
-          spans.add(TextSpan(
-              text: matchText.substring(2, matchText.length - 2),
-              style: style.copyWith(fontWeight: FontWeight.bold)));
-        } else if (matchText.startsWith('*') &&
-            matchText.endsWith('*') &&
-            matchText.length >= 2) {
-          spans.add(TextSpan(
-              text: matchText.substring(1, matchText.length - 1),
-              style: style.copyWith(fontStyle: FontStyle.italic)));
-        } else if (matchText.startsWith('`') &&
-            matchText.endsWith('`') &&
-            matchText.length >= 2) {
-          spans.add(TextSpan(
-              text: matchText.substring(1, matchText.length - 1),
-              style: style.copyWith(fontFamily: 'monospace')));
-        } else {
-          spans.add(TextSpan(text: matchText, style: style));
-        }
-        index = match.end;
-      }
-      if (index < line.length) {
-        spans.add(TextSpan(text: line.substring(index), style: style));
-      }
-      if (i != lines.length - 1) {
-        spans.add(TextSpan(text: '\n', style: baseStyle));
-      }
-    }
-    return spans;
-  }
-
-  /// Splits the raw markdown into block nodes. Currently supports paragraphs
-  /// and tables but is easily extensible for other block level widgets.
-  List<_MarkdownBlock> _composeBlocks(String input) {
-    final lines = input.split('\n');
-    final blocks = <_MarkdownBlock>[];
-    int i = 0;
-    while (i < lines.length) {
-      if (_isTableLine(lines[i])) {
-        final tableLines = <String>[];
-        while (i < lines.length && _isTableLine(lines[i])) {
-          tableLines.add(lines[i]);
-          i++;
-        }
-        blocks.add(_TableBlock(tableLines));
-      } else {
-        final buffer = StringBuffer();
-        while (i < lines.length && !_isTableLine(lines[i])) {
-          buffer.writeln(lines[i]);
-          i++;
-        }
-        blocks.add(_ParagraphBlock(buffer.toString().trimRight()));
-      }
-    }
-    return blocks;
-  }
-
-  bool _isTableLine(String line) {
-    var trimmed = line.trimLeft();
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      trimmed = trimmed.substring(2).trimLeft();
-    } else {
-      final match = RegExp(r'^\d+[.)]\s+').firstMatch(trimmed);
-      if (match != null) {
-        trimmed = trimmed.substring(match.end).trimLeft();
-      }
-    }
-    return trimmed.contains('|');
-  }
-
-  InlineSpan _buildTable(List<String> lines, TextStyle baseStyle) {
-    final rows = <List<String>>[];
-    for (final raw in lines) {
-      var line = raw.trim();
-      if (line.startsWith('- ') || line.startsWith('* ')) {
-        line = line.substring(2).trimLeft();
-      } else {
-        final match = RegExp(r'^\d+[.)]\s+').firstMatch(line);
-        if (match != null) {
-          line = line.substring(match.end).trimLeft();
-        }
-      }
-      if (line.startsWith('|')) {
-        line = line.substring(1);
-      }
-      if (line.endsWith('|')) {
-        line = line.substring(0, line.length - 1);
-      }
-      final cells = line.split('|').map((c) => c.trim()).toList();
-      final isSeparator =
-          cells.every((c) => RegExp(r'^:?-+:?$').hasMatch(c));
-      if (!isSeparator) {
-        rows.add(cells);
-      }
-    }
-
-    final tableRows = <TableRow>[];
-    for (final row in rows) {
-      tableRows.add(
-        TableRow(
-          children: [
-            for (final cell in row)
-              Padding(
-                padding: const EdgeInsets.all(4.0),
-                child: Text(cell, style: baseStyle),
-              ),
-          ],
-        ),
-      );
-    }
-
-    // Use top alignment so the table occupies the full vertical space of its
-    // line, preventing it from overlapping adjacent text.
-    return WidgetSpan(
-      alignment: PlaceholderAlignment.top,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
-        child: Table(
-          defaultColumnWidth: const IntrinsicColumnWidth(),
-          border: TableBorder.all(color: Colors.grey.shade400),
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          children: tableRows,
-        ),
-      ),
-    );
-  }
+  // Previous custom markdown parsing and table construction methods have been
+  // removed in favour of the shared rendering pipeline used by GptMarkdown.
 
   InlineSpan _applyGradient(TextSpan span, TextStyle baseStyle) {
     final painter = TextPainter(
@@ -388,23 +211,30 @@ class _MarkdownEditingController extends TextEditingController {
   }
 }
 
+/// Modes for rendering markdown blocks inside the editor.
+enum MarkdownEditorBlockMode { inlineWidgetSpan, sliverList }
+
 /// A markdown editor that displays rendered markdown, applies a gradient to the
 /// last few words, and can animate appended text chunks.
-class GptMarkdownEditor extends StatefulWidget {
-  const GptMarkdownEditor({
+class MarkdownEditor extends StatefulWidget {
+  const MarkdownEditor({
     super.key,
     required this.controller,
     this.onChanged,
+    this.theme,
+    this.blockMode = MarkdownEditorBlockMode.inlineWidgetSpan,
   });
 
   final GptMarkdownController controller;
   final ValueChanged<String>? onChanged;
+  final MdTheme? theme;
+  final MarkdownEditorBlockMode blockMode;
 
   @override
-  State<GptMarkdownEditor> createState() => _GptMarkdownEditorState();
+  State<MarkdownEditor> createState() => _MarkdownEditorState();
 }
 
-class _GptMarkdownEditorState extends State<GptMarkdownEditor>
+class _MarkdownEditorState extends State<MarkdownEditor>
     with SingleTickerProviderStateMixin {
   late final AnimationController _fadeController;
 
@@ -444,6 +274,10 @@ class _GptMarkdownEditorState extends State<GptMarkdownEditor>
     final theme = Theme.of(context);
     final baseStyle = theme.textTheme.bodyMedium;
 
+    // Apply theme to the underlying controller.
+    final ctrl = widget.controller.textController as _MarkdownEditingController;
+    ctrl.theme = widget.theme ?? mdThemeFromMarkdownComponent(context);
+
     return FadeTransition(
       opacity: _fadeController.drive(Tween(begin: 0.0, end: 1.0)),
       child: Theme(
@@ -454,7 +288,7 @@ class _GptMarkdownEditorState extends State<GptMarkdownEditor>
           focusColor: Colors.transparent,
         ),
         child: TextField(
-          controller: widget.controller.textController,
+          controller: ctrl,
           maxLines: null,
           style: baseStyle,
           decoration: const InputDecoration(
@@ -475,3 +309,7 @@ class _GptMarkdownEditorState extends State<GptMarkdownEditor>
   }
 }
 
+
+/// Backwards compatible alias for the previous widget name.
+@Deprecated('Use MarkdownEditor instead')
+typedef GptMarkdownEditor = MarkdownEditor;
