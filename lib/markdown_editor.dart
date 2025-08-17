@@ -350,9 +350,10 @@ class _MarkdownEditingController extends TextEditingController {
       );
     }
 
+    // Use top alignment so the table occupies the full vertical space of its
+    // line, preventing it from overlapping adjacent text.
     return WidgetSpan(
-      alignment: PlaceholderAlignment.baseline,
-      baseline: TextBaseline.alphabetic,
+      alignment: PlaceholderAlignment.top,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0),
         child: Table(
