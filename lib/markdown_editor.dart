@@ -4,7 +4,8 @@ part of 'gpt_markdown.dart';
 /// provide utilities for animated appends.
 class GptMarkdownController extends ChangeNotifier {
   GptMarkdownController({String text = ''})
-      : _textController = _MarkdownEditingController(text: text) {
+      : _textController =
+            _MarkdownEditingController(text: _stripCommonPadding(text)) {
     _textController.addListener(() {
       notifyListeners();
     });
@@ -26,8 +27,9 @@ class GptMarkdownController extends ChangeNotifier {
   String get text => _textController.text;
 
   set text(String value) {
-    if (_textController.text != value) {
-      _textController.text = value;
+    final stripped = _stripCommonPadding(value);
+    if (_textController.text != stripped) {
+      _textController.text = stripped;
     }
   }
 
@@ -35,6 +37,7 @@ class GptMarkdownController extends ChangeNotifier {
   /// the inserted segments with a typewriter effect.
   Future<void> appendMarkdown(String nextMarkdown,
       {Duration charDelay = Duration.zero}) async {
+    nextMarkdown = _stripCommonPadding(nextMarkdown);
     final current = _textController.text;
     if (nextMarkdown == current) return;
 
@@ -114,6 +117,24 @@ class GptMarkdownController extends ChangeNotifier {
     _textController.dispose();
     isAppending.dispose();
     super.dispose();
+  }
+
+  static String _stripCommonPadding(String text) {
+    final lines = text.split('\n');
+    int? minIndent;
+    for (final line in lines) {
+      if (line.trim().isEmpty) continue;
+      final indent = line.length - line.trimLeft().length;
+      if (minIndent == null || indent < minIndent) {
+        minIndent = indent;
+      }
+    }
+    if (minIndent == null || minIndent == 0) return text;
+    return lines
+        .map((line) => line.trim().isEmpty
+            ? ''
+            : line.substring(minIndent!))
+        .join('\n');
   }
 }
 

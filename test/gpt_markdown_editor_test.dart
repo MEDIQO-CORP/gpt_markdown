@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gpt_markdown/index.dart';
 import 'package:gpt_markdown/gpt_markdown.dart' as gm show GptMarkdown;
+import 'package:gpt_markdown/custom_widgets/custom_divider.dart';
 
 void main() {
   testWidgets('renders controller text', (tester) async {
@@ -149,5 +150,34 @@ void main() {
     await tester.drag(find.byType(GptMarkdownEditor), const Offset(0, -100));
     await tester.pump();
     expect(scrollController.offset, 0);
+  });
+
+  testWidgets('renders horizontal rule after list', (tester) async {
+    final controller = GptMarkdownController(
+      text: '- Item one\n- Item two\n\n--------------------\n## Next',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GptMarkdownEditor(controller: controller),
+      ),
+    );
+    await tester.pump();
+
+    // Horizontal rule should render as a custom divider
+    expect(find.byType(CustomDivider), findsOneWidget);
+    // Subsequent header text should appear separately without overlap
+    expect(find.text('Next'), findsOneWidget);
+  });
+
+  testWidgets('trims common leading padding', (tester) async {
+    const raw = '      - Assessment:\n        - Mild scoliosis';
+    final controller = GptMarkdownController(text: raw);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GptMarkdownEditor(controller: controller),
+      ),
+    );
+    await tester.pump();
+    expect(controller.text, '- Assessment:\n  - Mild scoliosis');
   });
 }
