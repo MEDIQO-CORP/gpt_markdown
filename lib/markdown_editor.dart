@@ -113,6 +113,21 @@ class GptMarkdownController extends ChangeNotifier {
   }
 }
 
+/// Base class for parsed markdown blocks.
+abstract class _MarkdownBlock {}
+
+/// Inline text such as paragraphs or headings.
+class _ParagraphBlock extends _MarkdownBlock {
+  _ParagraphBlock(this.text);
+  final String text;
+}
+
+/// Block widget such as a table.
+class _TableBlock extends _MarkdownBlock {
+  _TableBlock(this.lines);
+  final List<String> lines;
+}
+
 /// A markdown-aware [TextEditingController] that renders the current value as
 /// rich text and applies a gradient shader to the last few words.
 class _MarkdownEditingController extends TextEditingController {
@@ -177,28 +192,32 @@ class _MarkdownEditingController extends TextEditingController {
     return TextSpan(style: baseStyle, children: result);
   }
 
-  /// Parses a very small subset of markdown (**bold**, *italic*, `code`, ## heading, tables).
+  /// Breaks the markdown into block level nodes before rendering. This prevents
+  /// large widgets like tables from overlapping adjacent text by ensuring they
+  /// occupy their own line in the flow.
   List<InlineSpan> _parseMarkdown(String input, TextStyle baseStyle) {
     final spans = <InlineSpan>[];
-    final lines = input.split('\n');
-    int i = 0;
-    while (i < lines.length) {
-      var line = lines[i];
-
-      // Handle markdown tables
-      if (_isTableLine(line)) {
-        final tableLines = <String>[];
-        while (i < lines.length && _isTableLine(lines[i])) {
-          tableLines.add(lines[i]);
-          i++;
-        }
-        spans.add(_buildTable(tableLines, baseStyle));
-        if (i < lines.length) {
-          spans.add(TextSpan(text: '\n', style: baseStyle));
-        }
-        continue;
+    final blocks = _composeBlocks(input);
+    for (var i = 0; i < blocks.length; i++) {
+      final block = blocks[i];
+      if (block is _TableBlock) {
+        spans.add(_buildTable(block.lines, baseStyle));
+      } else if (block is _ParagraphBlock) {
+        spans.addAll(_parseInline(block.text, baseStyle));
       }
+      if (i != blocks.length - 1) {
+        spans.add(TextSpan(text: '\n', style: baseStyle));
+      }
+    }
+    return spans;
+  }
 
+  /// Parses inline markdown for a single paragraph or heading.
+  List<InlineSpan> _parseInline(String text, TextStyle baseStyle) {
+    final spans = <InlineSpan>[];
+    final lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
       var style = baseStyle;
       final headingMatch = RegExp(r'^(#{1,2})\s+(.*)').firstMatch(line);
       if (headingMatch != null) {
@@ -210,13 +229,12 @@ class _MarkdownEditingController extends TextEditingController {
           fontSize: (baseStyle.fontSize ?? 14) * scale,
         );
       }
-
       final regex = RegExp(r'(\*\*.*?\*\*|\*.*?\*|`.*?`)', dotAll: true);
       int index = 0;
       for (final match in regex.allMatches(line)) {
         if (match.start > index) {
-          spans.add(TextSpan(
-              text: line.substring(index, match.start), style: style));
+          spans.add(
+              TextSpan(text: line.substring(index, match.start), style: style));
         }
         final matchText = match.group(0)!;
         if (matchText.startsWith('**') &&
@@ -245,12 +263,37 @@ class _MarkdownEditingController extends TextEditingController {
       if (index < line.length) {
         spans.add(TextSpan(text: line.substring(index), style: style));
       }
-      if (i < lines.length - 1) {
+      if (i != lines.length - 1) {
         spans.add(TextSpan(text: '\n', style: baseStyle));
       }
-      i++;
     }
     return spans;
+  }
+
+  /// Splits the raw markdown into block nodes. Currently supports paragraphs
+  /// and tables but is easily extensible for other block level widgets.
+  List<_MarkdownBlock> _composeBlocks(String input) {
+    final lines = input.split('\n');
+    final blocks = <_MarkdownBlock>[];
+    int i = 0;
+    while (i < lines.length) {
+      if (_isTableLine(lines[i])) {
+        final tableLines = <String>[];
+        while (i < lines.length && _isTableLine(lines[i])) {
+          tableLines.add(lines[i]);
+          i++;
+        }
+        blocks.add(_TableBlock(tableLines));
+      } else {
+        final buffer = StringBuffer();
+        while (i < lines.length && !_isTableLine(lines[i])) {
+          buffer.writeln(lines[i]);
+          i++;
+        }
+        blocks.add(_ParagraphBlock(buffer.toString().trimRight()));
+      }
+    }
+    return blocks;
   }
 
   bool _isTableLine(String line) {
@@ -308,12 +351,16 @@ class _MarkdownEditingController extends TextEditingController {
     }
 
     return WidgetSpan(
-      alignment: PlaceholderAlignment.middle,
-      child: Table(
-        defaultColumnWidth: const IntrinsicColumnWidth(),
-        border: TableBorder.all(color: Colors.grey.shade400),
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        children: tableRows,
+      alignment: PlaceholderAlignment.baseline,
+      baseline: TextBaseline.alphabetic,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Table(
+          defaultColumnWidth: const IntrinsicColumnWidth(),
+          border: TableBorder.all(color: Colors.grey.shade400),
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          children: tableRows,
+        ),
       ),
     );
   }

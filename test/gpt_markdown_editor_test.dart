@@ -72,4 +72,23 @@ void main() {
     expect(find.byType(Table), findsOneWidget);
     expect(find.textContaining('|'), findsNothing);
   });
+
+  testWidgets('table reserves vertical space', (tester) async {
+    final controller = GptMarkdownController(
+      text: 'Above\n|A|B|\n|---|---|\n|1|2|\nBelow',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GptMarkdownEditor(controller: controller),
+      ),
+    );
+    await tester.pump();
+
+    final aboveBottom = tester.getBottomLeft(find.text('Above'));
+    final tableTop = tester.getTopLeft(find.byType(Table));
+    final belowTop = tester.getTopLeft(find.text('Below'));
+
+    expect(aboveBottom.dy < tableTop.dy, isTrue);
+    expect(tableTop.dy < belowTop.dy, isTrue);
+  });
 }
