@@ -5,7 +5,7 @@ import 'package:markdown/markdown.dart' as md;
 /// Simple markdown parser that enables the table syntax and exposes the
 /// resulting AST nodes.
 class MdParser {
-  MdParser() : _document = md.Document(extensions: [md.TableSyntax()]);
+  MdParser() : _document = md.Document(extensionSet: md.ExtensionSet.gitHubFlavored);
 
   final md.Document _document;
 
