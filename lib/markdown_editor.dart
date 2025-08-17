@@ -311,10 +311,9 @@ class _MarkdownEditorState extends State<MarkdownEditor>
           style: baseStyle,
           textAlign: widget.textAlign ?? TextAlign.start,
           textDirection: widget.textDirection,
-          // Older versions of Flutter's [TextField] do not expose a `textScaler`
-          // argument. Convert the optional [TextScaler] into the traditional
-          // `textScaleFactor` so callers can still influence text sizing.
-          textScaleFactor: widget.textScaler?.scale(1.0),
+          // Forward the optional [TextScaler] so callers can influence text
+          // sizing of the editable field.
+          textScaler: widget.textScaler,
           decoration: const InputDecoration(
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
