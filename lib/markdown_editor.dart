@@ -311,9 +311,6 @@ class _MarkdownEditorState extends State<MarkdownEditor>
           style: baseStyle,
           textAlign: widget.textAlign ?? TextAlign.start,
           textDirection: widget.textDirection,
-          // Forward the optional [TextScaler] so callers can influence text
-          // sizing of the editable field.
-          textScaler: widget.textScaler,
           decoration: const InputDecoration(
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
