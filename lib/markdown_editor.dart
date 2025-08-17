@@ -15,6 +15,10 @@ class GptMarkdownController extends ChangeNotifier {
   /// Exposes the underlying [TextEditingController].
   TextEditingController get textController => _textController;
 
+  /// Configuration used when rendering markdown spans.
+  GptMarkdownConfig? get config => _textController.config;
+  set config(GptMarkdownConfig? value) => _textController.config = value;
+
   /// Notifies when a typewriter append is running.
   final ValueNotifier<bool> isAppending = ValueNotifier<bool>(false);
 
@@ -123,6 +127,9 @@ class _MarkdownEditingController extends TextEditingController {
   /// Optional theme supplied by the surrounding editor.
   MdTheme? theme;
 
+  /// Configuration describing how markdown should be rendered.
+  GptMarkdownConfig? config;
+
   bool showHighlight = false;
 
   @override
@@ -133,9 +140,12 @@ class _MarkdownEditingController extends TextEditingController {
   }) {
     final baseStyle = style ?? const TextStyle();
     final effectiveTheme = theme ?? mdThemeFromMarkdownComponent(context);
+    final effectiveConfig =
+        (config ?? const GptMarkdownConfig()).copyWith(style: baseStyle);
     final parser = MdParser();
     final ast = parser.parse(text);
-    final renderer = MdBlockRenderer(theme: effectiveTheme);
+    final renderer =
+        MdBlockRenderer(theme: effectiveTheme, config: effectiveConfig);
     final spans = renderer.renderBlocks(context, ast, source: text);
     if (!showHighlight) {
       return TextSpan(children: spans, style: baseStyle);
@@ -223,12 +233,20 @@ class MarkdownEditor extends StatefulWidget {
     this.onChanged,
     this.theme,
     this.blockMode = MarkdownEditorBlockMode.inlineWidgetSpan,
+    this.style,
+    this.textAlign,
+    this.textDirection = TextDirection.ltr,
+    this.textScaler,
   });
 
   final GptMarkdownController controller;
   final ValueChanged<String>? onChanged;
   final MdTheme? theme;
   final MarkdownEditorBlockMode blockMode;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+  final TextDirection textDirection;
+  final TextScaler? textScaler;
 
   @override
   State<MarkdownEditor> createState() => _MarkdownEditorState();
@@ -272,7 +290,7 @@ class _MarkdownEditorState extends State<MarkdownEditor>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final baseStyle = theme.textTheme.bodyMedium;
+    final baseStyle = widget.style ?? theme.textTheme.bodyMedium;
 
     // Apply theme to the underlying controller.
     final ctrl = widget.controller.textController as _MarkdownEditingController;
@@ -291,6 +309,9 @@ class _MarkdownEditorState extends State<MarkdownEditor>
           controller: ctrl,
           maxLines: null,
           style: baseStyle,
+          textAlign: widget.textAlign ?? TextAlign.start,
+          textDirection: widget.textDirection,
+          textScaler: widget.textScaler,
           decoration: const InputDecoration(
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
@@ -308,8 +329,3 @@ class _MarkdownEditorState extends State<MarkdownEditor>
     );
   }
 }
-
-
-/// Backwards compatible alias for the previous widget name.
-@Deprecated('Use MarkdownEditor instead')
-typedef GptMarkdownEditor = MarkdownEditor;

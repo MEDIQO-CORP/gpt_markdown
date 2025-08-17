@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:gpt_markdown/gpt_markdown.dart';
+import 'package:gpt_markdown/index.dart';
+import 'package:gpt_markdown/gpt_markdown.dart' as gm show GptMarkdown;
 
 void main() {
   testWidgets('renders controller text', (tester) async {
@@ -13,6 +14,26 @@ void main() {
 
     await tester.pump();
     expect(find.text('hello'), findsOneWidget);
+  });
+
+  testWidgets('matches GptMarkdown rendering', (tester) async {
+    const text = 'Hello **world**';
+    final controller = GptMarkdownController(text: text);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Column(
+          children: [
+            gm.GptMarkdown(text),
+            GptMarkdownEditor(controller: controller),
+          ],
+        ),
+      ),
+    );
+    await tester.pump();
+    final rich = tester.widget<RichText>(find.descendant(
+        of: find.byType(gm.GptMarkdown), matching: find.byType(RichText)));
+    final editable = tester.widget<EditableText>(find.byType(EditableText));
+    expect(rich.text.toPlainText(), editable.controller.text);
   });
 
   testWidgets('fires onChanged when text updates', (tester) async {
@@ -90,5 +111,28 @@ void main() {
 
     expect(aboveBottom.dy < tableTop.dy, isTrue);
     expect(tableTop.dy < belowTop.dy, isTrue);
+  });
+
+  testWidgets('scrolling stays internal', (tester) async {
+    final controller = GptMarkdownController(text: List.generate(50, (i) => 'line $i').join('\n'));
+    final scrollController = ScrollController();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          height: 200,
+          child: SingleChildScrollView(
+            controller: scrollController,
+            child: SizedBox(
+              height: 200,
+              child: GptMarkdownEditor(controller: controller),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.drag(find.byType(GptMarkdownEditor), const Offset(0, -100));
+    await tester.pump();
+    expect(scrollController.offset, 0);
   });
 }
