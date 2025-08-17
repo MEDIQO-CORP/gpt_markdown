@@ -1002,42 +1002,48 @@ class ImageMd extends InlineMd {
 class TableMd extends BlockMd {
   @override
   String get expString =>
-      (r"(((\|[^\n\|]+\|)((([^\n\|]+\|)+)?)\ *)(\n\ *(((\|[^\n\|]+\|)(([^\n\|]+\|)+)?))\ *)+)$");
+      // Match groups of rows that contain at least one pipe `|` per line. Each
+      // row may optionally begin with `-` (to support bullet style rows) and
+      // does not require leading or trailing pipes. This also supports the
+      // traditional table syntax where rows are wrapped in pipes and a second
+      // separator row indicates column alignment.
+      (r"((\s*-?[^\n\|]*\|[^\n\|]*(\|[^\n\|]*)*\n)+\s*-?[^\n\|]*\|[^\n\|]*(\|[^\n\|]*)*)");
   @override
   Widget build(
     BuildContext context,
     String text,
     final GptMarkdownConfig config,
   ) {
-    final List<Map<int, String>> value =
-        text
-            .split('\n')
-            .map<Map<int, String>>(
-              (e) =>
-                  e
-                      .trim()
-                      .split('|')
-                      .where((element) => element.isNotEmpty)
-                      .toList()
-                      .asMap(),
-            )
-            .toList();
+    final rows = text
+        .split('\n')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .map<List<String>>((line) {
+          var data = line;
+          if (data.startsWith('-')) {
+            data = data.substring(1).trim();
+          }
+          if (data.startsWith('|') && data.endsWith('|')) {
+            data = data.substring(1, data.length - 1);
+          }
+          return data.split('|').map((e) => e.trim()).toList();
+        })
+        .toList();
 
-    // Check if table has a header and separator row
-    bool hasHeader = value.length >= 2;
+    if (rows.isEmpty) {
+      return Text("", style: config.style);
+    }
+
+    // Detect and parse an optional alignment row (second row when present).
+    bool hasAlignmentRow = rows.length > 1 &&
+        rows[1].every((cell) => RegExp(r'^:?[-]+:?$').hasMatch(cell.trim()));
+
     List<TextAlign> columnAlignments = [];
-
-    if (hasHeader) {
-      // Parse alignment from the separator row (second row)
-      var separatorRow = value[1];
-      columnAlignments = List.generate(separatorRow.length, (index) {
-        String separator = separatorRow[index] ?? "";
-        separator = separator.trim();
-
-        // Check for alignment indicators
-        bool hasLeftColon = separator.startsWith(':');
-        bool hasRightColon = separator.endsWith(':');
-
+    if (hasAlignmentRow) {
+      columnAlignments = rows[1].map((cell) {
+        final separator = cell.trim();
+        final hasLeftColon = separator.startsWith(':');
+        final hasRightColon = separator.endsWith(':');
         if (hasLeftColon && hasRightColon) {
           return TextAlign.center;
         } else if (hasRightColon) {
@@ -1045,15 +1051,17 @@ class TableMd extends BlockMd {
         } else if (hasLeftColon) {
           return TextAlign.left;
         } else {
-          return TextAlign.left; // Default alignment
+          return TextAlign.left;
         }
-      });
+      }).toList();
+      // Remove alignment row from data rows.
+      rows.removeAt(1);
     }
 
     int maxCol = 0;
-    for (final each in value) {
-      if (maxCol < each.keys.length) {
-        maxCol = each.keys.length;
+    for (final row in rows) {
+      if (maxCol < row.length) {
+        maxCol = row.length;
       }
     }
 
@@ -1061,33 +1069,24 @@ class TableMd extends BlockMd {
       return Text("", style: config.style);
     }
 
-    // Ensure we have alignment for all columns
     while (columnAlignments.length < maxCol) {
       columnAlignments.add(TextAlign.left);
     }
 
-    var tableBuilder = config.tableBuilder;
+    final tableBuilder = config.tableBuilder;
 
     if (tableBuilder != null) {
-      var customTable =
-          List<CustomTableRow?>.generate(value.length, (index) {
-            var isHeader = index == 0;
-            var row = value[index];
-            if (row.isEmpty) {
-              return null;
-            }
-            if (index == 1) {
-              return null;
-            }
-            var fields = List<CustomTableField>.generate(maxCol, (index) {
-              var field = row[index];
-              return CustomTableField(
-                data: field ?? "",
-                alignment: columnAlignments[index],
-              );
-            });
-            return CustomTableRow(isHeader: isHeader, fields: fields);
-          }).nonNulls.toList();
+      final customTable = List<CustomTableRow>.generate(rows.length, (index) {
+        final row = rows[index];
+        final fields = List<CustomTableField>.generate(maxCol, (i) {
+          final field = i < row.length ? row[i] : '';
+          return CustomTableField(
+            data: field,
+            alignment: columnAlignments[i],
+          );
+        });
+        return CustomTableRow(isHeader: index == 0, fields: fields);
+      });
       return tableBuilder(
         context,
         customTable,
@@ -1112,75 +1111,54 @@ class TableMd extends BlockMd {
               width: 2,
               color: Theme.of(context).colorScheme.onSurface,
             ),
-            children:
-              value
-                  .asMap()
-                  .entries
-                  .where((entry) {
-                    // Skip the separator row (second row) from rendering
-                    if (hasHeader && entry.key == 1) {
-                      return false;
-                    }
-                    return true;
-                  })
-                  .map<TableRow>(
-                    (entry) => TableRow(
-                      decoration:
-                          (hasHeader && entry.key == 0)
-                              ? BoxDecoration(
-                                color:
-                                    Theme.of(
-                                      context,
-                                    ).colorScheme.surfaceContainerHighest,
-                              )
-                              : null,
-                      children: List.generate(maxCol, (index) {
-                        var e = entry.value;
-                        String data = e[index] ?? "";
-                        if (RegExp(r"^:?--+:?$").hasMatch(data.trim()) ||
-                            data.trim().isEmpty) {
-                          return const SizedBox();
-                        }
-
-                        // Apply alignment based on column alignment
-                        Widget content = Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          child: MdWidget(
-                            context,
-                            (e[index] ?? "").trim(),
-                            false,
-                            config: config,
-                          ),
-                        );
-
-                        // Wrap with alignment widget
-                        switch (columnAlignments[index]) {
-                          case TextAlign.center:
-                            content = Center(child: content);
-                            break;
-                          case TextAlign.right:
-                            content = Align(
-                              alignment: Alignment.centerRight,
-                              child: content,
-                            );
-                            break;
-                          case TextAlign.left:
-                          default:
-                            content = Align(
-                              alignment: Alignment.centerLeft,
-                              child: content,
-                            );
-                            break;
-                        }
-
-                        return content;
-                      }),
+            children: rows.asMap().entries.map<TableRow>((entry) {
+              final row = entry.value;
+              return TableRow(
+                decoration: entry.key == 0
+                    ? BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                      )
+                    : null,
+                children: List.generate(maxCol, (index) {
+                  final data = index < row.length ? row[index] : '';
+                  Widget content = Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
-                  )
-                  .toList(),
+                    child: MdWidget(
+                      context,
+                      data.trim(),
+                      false,
+                      config: config,
+                    ),
+                  );
+
+                  switch (columnAlignments[index]) {
+                    case TextAlign.center:
+                      content = Center(child: content);
+                      break;
+                    case TextAlign.right:
+                      content = Align(
+                        alignment: Alignment.centerRight,
+                        child: content,
+                      );
+                      break;
+                    case TextAlign.left:
+                    default:
+                      content = Align(
+                        alignment: Alignment.centerLeft,
+                        child: content,
+                      );
+                      break;
+                  }
+
+                  return content;
+                }),
+              );
+            }).toList(),
           ),
         ),
       ),
