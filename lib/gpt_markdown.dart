@@ -15,6 +15,9 @@ import 'dart:async';
 import 'custom_widgets/code_field.dart';
 import 'custom_widgets/indent_widget.dart';
 import 'custom_widgets/link_button.dart';
+import 'markdown/render/md_parser.dart';
+import 'markdown/render/md_block_renderer.dart';
+import 'markdown/render/md_theme.dart';
 
 part 'theme.dart';
 part 'markdown_component.dart';
