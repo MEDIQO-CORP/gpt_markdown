@@ -271,7 +271,12 @@ class NewLines extends InlineMd {
 /// Horizontal line component
 class HrLine extends BlockMd {
   @override
-  String get expString => (r"⸻|((--)[-]+)$");
+  // Matches a line consisting solely of three or more hyphens or the em dash
+  // character. The previous implementation embedded anchors in the pattern,
+  // which prevented proper detection and could treat long dash rows as list
+  // items. Removing the trailing `$` and simplifying the expression ensures
+  // horizontal rules like `--------------------` render correctly.
+  String get expString => r'(?:⸻|-{3,})';
   @override
   Widget build(
     BuildContext context,
