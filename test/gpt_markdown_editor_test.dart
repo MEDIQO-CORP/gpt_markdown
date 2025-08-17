@@ -168,4 +168,16 @@ void main() {
     // Subsequent header text should appear separately without overlap
     expect(find.text('Next'), findsOneWidget);
   });
+
+  testWidgets('trims common leading padding', (tester) async {
+    const raw = '      - Assessment:\n        - Mild scoliosis';
+    final controller = GptMarkdownController(text: raw);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GptMarkdownEditor(controller: controller),
+      ),
+    );
+    await tester.pump();
+    expect(controller.text, '- Assessment:\n  - Mild scoliosis');
+  });
 }
