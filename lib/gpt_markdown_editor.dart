@@ -1,4 +1,12 @@
 import 'package:flutter/material.dart';
+
+// Bring in markdown configuration and theme helpers that are not re-exported by
+// `gpt_markdown.dart`. Without these imports, the builder typedefs such as
+// [LatexBuilder] or [CodeBlockBuilder] and the `mdThemeFromMarkdownComponent`
+// function are unresolved when compiling this file.
+import 'custom_widgets/markdown_config.dart';
+import 'markdown/render/md_theme.dart';
+
 import 'gpt_markdown.dart';
 
 /// Editable variant of [GptMarkdown] that renders markdown spans while allowing
