@@ -1181,6 +1181,7 @@ class TableMd extends BlockMd {
                     ),
                   )
                   .toList(),
+          ),
         ),
       ),
     );
